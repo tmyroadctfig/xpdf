@@ -31,8 +31,10 @@ public:
   // Create an OutputDev which will write images to files named
   // <fileRoot>-NNN.<type>.  Normally, all images are written as PBM
   // (.pbm) or PPM (.ppm) files.  If <dumpJPEG> is set, JPEG images are
-  // written as JPEG (.jpg) files.
-  ImageOutputDev(char *fileRootA, GBool dumpJPEGA);
+  // written as JPEG (.jpg) files. If <minimumSize> is greater than 0,
+  // the height and width of an image must be greater than this size to be 
+  // output as a file.
+  ImageOutputDev(char *fileRootA, GBool dumpJPEGA, int minimumSize);
 
   // Destructor.
   virtual ~ImageOutputDev();
@@ -83,6 +85,7 @@ private:
   GBool dumpJPEG;		// set to dump native JPEG files
   int imgNum;			// current image number
   GBool ok;			// set up ok?
+  int minSize;
 };
 
 #endif

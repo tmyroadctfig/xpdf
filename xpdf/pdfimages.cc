@@ -26,9 +26,13 @@
 #include "ImageOutputDev.h"
 #include "Error.h"
 #include "config.h"
+#include "eh.h"
 
+static void printInfoString(FILE *f, Dict *infoDict, char *key,
+                            char *text1, char *text2, UnicodeMap *uMap);
 static int firstPage = 1;
 static int lastPage = 0;
+static int minimumSize = 0;
 static GBool dumpJPEG = gFalse;
 static char ownerPassword[33] = "\001";
 static char userPassword[33] = "\001";
@@ -44,6 +48,8 @@ static ArgDesc argDesc[] = {
    "last page to convert"},
   {"-j",      argFlag,     &dumpJPEG,      0,
    "write JPEG images as JPEG files"},
+  {"-m",      argInt,     &minimumSize,    0,
+   "minimum image size to output"},
   {"-opw",    argString,   ownerPassword,  sizeof(ownerPassword),
    "owner password (for encrypted files)"},
   {"-upw",    argString,   userPassword,   sizeof(userPassword),
@@ -65,6 +71,33 @@ static ArgDesc argDesc[] = {
   {NULL}
 };
 
+static void translator(unsigned, EXCEPTION_POINTERS *);
+
+class Win32Exception {
+  private:
+    void *_address;
+    unsigned _code;
+  public:
+    Win32Exception(EXCEPTION_POINTERS const &info) throw() {
+      EXCEPTION_RECORD const &exception = *(info.ExceptionRecord);
+      _address = exception.ExceptionAddress;
+      _code = exception.ExceptionCode;
+    }
+    static void install() throw() {
+      _set_se_translator(translator);
+    }
+    unsigned getCode() const throw() {
+      return _code;
+    }
+    void const *getAddress() const throw() {
+      return _address;
+    }
+};
+
+static void translator(unsigned code, EXCEPTION_POINTERS *info) {
+  throw Win32Exception(*info);
+}
+
 int main(int argc, char *argv[]) {
   PDFDoc *doc;
   GString *fileName;
@@ -76,6 +109,10 @@ int main(int argc, char *argv[]) {
 
   exitCode = 99;
 
+  // Install the SE handler.
+  Win32Exception::install();
+
+  try {  
   // parse args
   ok = parseArgs(argDesc, &argc, argv);
   if (!ok || argc != 3 || printVersion || printHelp) {
@@ -133,7 +170,7 @@ int main(int argc, char *argv[]) {
     lastPage = doc->getNumPages();
 
   // write image files
-  imgOut = new ImageOutputDev(imgRoot, dumpJPEG);
+  imgOut = new ImageOutputDev(imgRoot, dumpJPEG, minimumSize);
   if (imgOut->isOk()) {
     doc->displayPages(imgOut, firstPage, lastPage, 72, 72, 0,
 		      gFalse, gTrue, gFalse);
@@ -153,4 +190,9 @@ int main(int argc, char *argv[]) {
   gMemReport(stderr);
 
   return exitCode;
+  
+  } catch (...) {
+    fprintf(stderr, "Unexpected exception while running pdftotext\r\n");
+    return -1;
+  }
 }

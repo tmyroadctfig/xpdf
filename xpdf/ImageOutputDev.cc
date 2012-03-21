@@ -24,12 +24,13 @@
 #include "Stream.h"
 #include "ImageOutputDev.h"
 
-ImageOutputDev::ImageOutputDev(char *fileRootA, GBool dumpJPEGA) {
+ImageOutputDev::ImageOutputDev(char *fileRootA, GBool dumpJPEGA, int minimumSize) {
   fileRoot = copyString(fileRootA);
   fileName = (char *)gmalloc((int)strlen(fileRoot) + 20);
   dumpJPEG = dumpJPEGA;
   imgNum = 0;
   ok = gTrue;
+  minSize = minimumSize;
 }
 
 ImageOutputDev::~ImageOutputDev() {
@@ -51,6 +52,10 @@ void ImageOutputDev::drawImageMask(GfxState *state, Object *ref, Stream *str,
   FILE *f;
   int c;
   int size, i;
+
+  if(width < minSize || height < minSize) {
+    return;
+  }
 
   // dump JPEG file
   if (dumpJPEG && str->getKind() == strDCT && !inlineImg) {
@@ -113,6 +118,10 @@ void ImageOutputDev::drawImage(GfxState *state, Object *ref, Stream *str,
   int c;
   int size, i;
 
+  if(width < minSize || height < minSize) {
+    return;
+  }
+  
   // dump JPEG file
   if (dumpJPEG && str->getKind() == strDCT &&
       (colorMap->getNumPixelComps() == 1 ||
