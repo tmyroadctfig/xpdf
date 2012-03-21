@@ -28,6 +28,7 @@
 #include "UnicodeMap.h"
 #include "Error.h"
 #include "config.h"
+#include "eh.h"
 
 static void printInfoString(FILE *f, Dict *infoDict, const char *key,
 			    const char *text1, const char *text2,
@@ -91,6 +92,39 @@ static ArgDesc argDesc[] = {
   {NULL}
 };
 
+static void translator(unsigned code, EXCEPTION_POINTERS *info);
+
+class Win32Exception
+{
+private:
+  void *_address;
+  unsigned _code;
+public:
+  Win32Exception(EXCEPTION_POINTERS const &info) throw()
+  {
+    EXCEPTION_RECORD const &exception = *(info.ExceptionRecord);
+    _address = exception.ExceptionAddress;
+    _code = exception.ExceptionCode;
+  }
+  static void install() throw()
+  {
+    _set_se_translator(translator);
+  }
+  unsigned getCode() const throw()
+  {
+    return _code;
+  }
+  void const *getAddress() const throw()
+  {
+    return _address;
+  }
+};
+
+static void translator(unsigned code, EXCEPTION_POINTERS *info)
+{
+  throw Win32Exception(*info);
+}
+
 int main(int argc, char *argv[]) {
   PDFDoc *doc;
   GString *fileName;
@@ -106,6 +140,11 @@ int main(int argc, char *argv[]) {
 
   exitCode = 99;
 
+  // Install the SE handler.
+  Win32Exception::install();
+  
+  try
+  {
   // parse args
   ok = parseArgs(argDesc, &argc, argv);
   if (!ok || argc < 2 || argc > 3 || printVersion || printHelp) {
@@ -169,12 +208,12 @@ int main(int argc, char *argv[]) {
   }
 
   // check for copy permission
-  if (!doc->okToCopy()) {
-    error(errNotAllowed, -1,
-	  "Copying of text from this document is not allowed.");
-    exitCode = 3;
-    goto err2;
-  }
+//  if (!doc->okToCopy()) {
+//    error(errNotAllowed, -1,
+//	  "Copying of text from this document is not allowed.");
+//    exitCode = 3;
+//    goto err2;
+//  }
 
   // construct text file name
   if (argc == 3) {
@@ -288,6 +327,13 @@ int main(int argc, char *argv[]) {
   gMemReport(stderr);
 
   return exitCode;
+  
+  }
+  catch (...)
+  {
+    fprintf(stderr, "Unexpected exception while running pdftotext\r\n");
+    return -1;
+  }
 }
 
 static void printInfoString(FILE *f, Dict *infoDict, const char *key,
